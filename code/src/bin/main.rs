@@ -7,6 +7,9 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+use alloc::string::String;
+use core::fmt::Write;
+
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
@@ -21,13 +24,9 @@ use smart_leds::{RGB8, SmartLedsWrite};
 
 use display_interface_spi::SPIInterface;
 use embedded_graphics::{
-    mono_font::{
-        MonoTextStyleBuilder,
-        ascii::{FONT_6X10, FONT_7X13, FONT_8X13_BOLD},
-    },
+    mono_font::{MonoTextStyleBuilder, ascii::FONT_7X13},
     pixelcolor::BinaryColor,
     prelude::*,
-    primitives::{Line, PrimitiveStyle, Rectangle},
     text::{Baseline, Text},
 };
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -41,6 +40,8 @@ use esp_hal::{
 };
 use oled_async::{builder::Builder, displays::ssd1309::Ssd1309_128_64, mode::GraphicsMode};
 
+#[path = "../ui.rs"]
+mod ui;
 extern crate alloc;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -117,24 +118,14 @@ async fn main(spawner: Spawner) -> ! {
 
     led.write([RGB8::new(0, 20, 25)]).unwrap();
 
-    let header_style = MonoTextStyleBuilder::new()
-        .font(&FONT_8X13_BOLD)
-        .text_color(BinaryColor::On)
-        .build();
-
     let big_style = MonoTextStyleBuilder::new()
         .font(&FONT_7X13)
         .text_color(BinaryColor::On)
         .build();
 
-    let small_style = MonoTextStyleBuilder::new()
-        .font(&FONT_6X10)
-        .text_color(BinaryColor::On)
-        .build();
+    //
 
-    loop {
-        index += 1;
-        info!("{}", index);
+    for index in 0..8 {
         display.clear();
 
         match index % 4 {
@@ -142,19 +133,9 @@ async fn main(spawner: Spawner) -> ! {
                 Text::with_baseline("Loading", Point::new(32, 16), big_style, Baseline::Top)
                     .draw(&mut display)
                     .unwrap();
-
-                Rectangle::new(Point::new(40, 44), Size::new(16, 16))
-                    .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
-                    .draw(&mut display)
-                    .unwrap();
             }
             1 => {
                 Text::with_baseline("Loading.", Point::new(32, 16), big_style, Baseline::Top)
-                    .draw(&mut display)
-                    .unwrap();
-
-                Rectangle::new(Point::new(56, 44), Size::new(16, 16))
-                    .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
                     .draw(&mut display)
                     .unwrap();
             }
@@ -162,19 +143,9 @@ async fn main(spawner: Spawner) -> ! {
                 Text::with_baseline("Loading..", Point::new(32, 16), big_style, Baseline::Top)
                     .draw(&mut display)
                     .unwrap();
-
-                Rectangle::new(Point::new(72, 44), Size::new(16, 16))
-                    .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
-                    .draw(&mut display)
-                    .unwrap();
             }
             _ => {
                 Text::with_baseline("Loading...", Point::new(32, 16), big_style, Baseline::Top)
-                    .draw(&mut display)
-                    .unwrap();
-
-                Rectangle::new(Point::new(56, 44), Size::new(16, 16))
-                    .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
                     .draw(&mut display)
                     .unwrap();
             }
@@ -182,5 +153,38 @@ async fn main(spawner: Spawner) -> ! {
 
         display.flush().await.unwrap();
         Timer::after(Duration::from_millis(250)).await;
+    }
+
+    //
+
+    loop {
+        index += 1;
+        info!("{}", index);
+        display.clear();
+
+        let visual_beat = match index % 4 {
+            0 => "XXXX____________",
+            1 => "____XXXX________",
+            2 => "________XXXX____",
+            _ => "____________XXXX",
+        };
+
+        let title = "LEO SYNTH";
+        let mut info_1 = String::new();
+        write!(info_1, "{}", index).unwrap();
+        let info_2 = "";
+        let main: [&str; 5] = [
+            "Welcome to my synth!",
+            "Version: 2026-11",
+            visual_beat,
+            "TEST TEST TEST TEST",
+            "Made by Leo Funk",
+        ];
+        let selected = Some(4);
+
+        ui::draw_menu(&mut display, title, &info_1, info_2, main, selected);
+
+        display.flush().await.unwrap();
+        Timer::after(Duration::from_millis(500)).await;
     }
 }
